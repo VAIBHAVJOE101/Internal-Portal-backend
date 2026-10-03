@@ -13,6 +13,7 @@ import java.util.concurrent.Future;
 
 import com.platform.portal.alerts.Alert;
 import com.platform.portal.alerts.AlertService;
+import com.platform.portal.alerts.AlertType;
 import com.platform.portal.audit.AuditService;
 import com.platform.portal.common.ApiException;
 import com.platform.portal.common.CurrentUser;
@@ -189,7 +190,7 @@ public class ConnectivityService {
         if (outcome.success()) {
             alerts.resolve(alertKey(id));
         } else if (t.getConsecutiveFailures() >= t.getFailureThreshold()) {
-            alerts.raise("CONNECTIVITY", Alert.Severity.CRITICAL, alertKey(id),
+            alerts.raise(AlertType.CONNECTIVITY_FAILURE, alertKey(id), null,
                     "Connectivity check '" + t.getName() + "' failing (" + t.getConsecutiveFailures() + "x)",
                     outcome.message(), spec.describe());
         }

@@ -13,9 +13,17 @@ public final class BoardsModels {
     public record Person(String displayName, String uniqueName, String imageUrl) {
     }
 
+    /** {@code description} and {@code acceptanceCriteria} are HTML and only populated by the detail endpoint. */
     public record WorkItem(int id, String title, String type, String state, Person assignedTo, String startDate, String endDate,
                            Double remainingWork, Double storyPoints, Integer priority, List<String> tags, Integer parentId,
-                           String url, String changedDate, int rev) {
+                           String url, String changedDate, int rev, String description, String acceptanceCriteria,
+                           Integer commentCount) {
+    }
+
+    public record Comment(int id, String text, Person author, String createdDate, String modifiedDate) {
+    }
+
+    public record CommentRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 10_000) String text) {
     }
 
     public record Sprint(Iteration iteration, List<String> columns, List<WorkItem> items, List<Iteration> iterations) {
@@ -23,6 +31,6 @@ public final class BoardsModels {
 
     /** Partial update; null fields are left unchanged, empty strings clear the field. */
     public record WorkItemUpdate(String state, String assignedTo, String startDate, String endDate, String title,
-                                 Double remainingWork, Integer rev) {
+                                 Double remainingWork, String description, Integer rev) {
     }
 }

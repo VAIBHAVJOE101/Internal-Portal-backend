@@ -14,6 +14,10 @@ import com.platform.portal.boards.BoardsModels.WorkItemUpdate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.util.HtmlUtils;
+import com.platform.portal.common.Strings;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -61,8 +65,25 @@ public class BoardsController {
         diff(b, a, "startDate", before.startDate(), update.startDate());
         diff(b, a, "endDate", before.endDate(), update.endDate());
         diff(b, a, "title", before.title(), update.title());
+        if (update.description() != null && !update.description().equals(before.description())) {
+            b.put("description", Strings.truncate(before.description(), 300));
+            a.put("description", Strings.truncate(update.description(), 300));
+        }
         return audit.track("BOARDS_WORKITEM_UPDATE", "work-item", "#" + id + " " + before.title(), Map.of("before", b, "after", a),
                 () -> boards.update(id, update));
+    }
+
+    @GetMapping("/work-items/{id}/comments")
+    public List<BoardsModels.Comment> comments(@PathVariable int id) {
+        return boards.comments(id);
+    }
+
+    /** Plain-text comment; converted to escaped HTML with line breaks for Azure DevOps. */
+    @PostMapping("/work-items/{id}/comments")
+    public BoardsModels.Comment addComment(@PathVariable int id, @Valid @RequestBody BoardsModels.CommentRequest request) {
+        String html = "<div>" + HtmlUtils.htmlEscape(request.text().trim()).replace("\n", "<br>") + "</div>";
+        return audit.track("BOARDS_COMMENT_ADD", "work-item", "#" + id, Map.of("text", Strings.truncate(request.text(), 500)),
+                () -> boards.addComment(id, html));
     }
 
     private static void diff(Map<String, Object> before, Map<String, Object> after, String key, Object oldValue, Object newValue) {

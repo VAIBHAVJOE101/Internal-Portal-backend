@@ -11,6 +11,7 @@ public record PortalProperties(
         @DefaultValue("real") String mode,
         @DefaultValue("dev") String environment,
         @DefaultValue("/") String frontendUrl,
+        @DefaultValue("http://localhost:5173") String publicUrl,
         String encryptionKey,
         @DefaultValue Auth auth,
         @DefaultValue Jobs jobs,

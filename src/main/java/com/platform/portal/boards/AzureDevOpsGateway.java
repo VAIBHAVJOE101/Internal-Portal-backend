@@ -40,7 +40,8 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
     };
     private static final List<String> FIELDS = List.of("System.Id", "System.Title", "System.WorkItemType", "System.State",
             "System.AssignedTo", "System.Tags", "System.Parent", "System.ChangedDate", "Microsoft.VSTS.Common.Priority",
-            "Microsoft.VSTS.Scheduling.RemainingWork", "Microsoft.VSTS.Scheduling.StoryPoints");
+            "Microsoft.VSTS.Scheduling.RemainingWork", "Microsoft.VSTS.Scheduling.StoryPoints", "System.CommentCount");
+    private static final String COMMENTS_API = "api-version=7.1-preview.4";
 
     private final SettingsService settings;
     private final SimpleClientHttpRequestFactory requestFactory;
@@ -192,6 +193,9 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
         field(patch, "System.AssignedTo", update.assignedTo());
         field(patch, ctx.startField(), update.startDate());
         field(patch, ctx.endField(), update.endDate());
+        if (update.description() != null) {
+            field(patch, descriptionField(ctx, id), update.description());
+        }
         if (update.remainingWork() != null) {
             patch.add(op("Microsoft.VSTS.Scheduling.RemainingWork", update.remainingWork()));
         }
@@ -201,6 +205,43 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
         Map<String, Object> body = call(() -> ctx.client().patch().uri(ctx.uri(ctx.projectBase() + "/_apis/wit/workitems/" + id + "?" + API))
                 .contentType(MediaType.parseMediaType("application/json-patch+json")).body(patch).retrieve().body(MAP));
         return toWorkItem(body, ctx);
+    }
+
+    @Override
+    public List<BoardsModels.Comment> comments(int id) {
+        Ctx ctx = ctx();
+        Map<String, Object> body = get(ctx, ctx.projectBase() + "/_apis/wit/workItems/" + id + "/comments?$top=200&order=asc&" + COMMENTS_API);
+        return list(body.get("comments")).stream().map(AzureDevOpsGateway::toComment).toList();
+    }
+
+    @Override
+    public BoardsModels.Comment addComment(int id, String html) {
+        Ctx ctx = ctx();
+        Map<String, Object> body = call(() -> ctx.client().post().uri(ctx.uri(ctx.projectBase() + "/_apis/wit/workItems/" + id + "/comments?" + COMMENTS_API))
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("text", html)).retrieve().body(MAP));
+        return toComment(body);
+    }
+
+    /** Bugs usually carry their description in Repro Steps; edit that field when System.Description is empty. */
+    private String descriptionField(Ctx ctx, int id) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> f = (Map<String, Object>) get(ctx, ctx.projectBase() + "/_apis/wit/workitems/" + id + "?" + API).getOrDefault("fields", Map.of());
+        boolean useRepro = "Bug".equals(f.get("System.WorkItemType")) && Strings.isBlank((String) f.get("System.Description"))
+                && !Strings.isBlank((String) f.get("Microsoft.VSTS.TCM.ReproSteps"));
+        return useRepro ? "Microsoft.VSTS.TCM.ReproSteps" : "System.Description";
+    }
+
+    private static String description(Map<String, Object> f) {
+        String d = (String) f.get("System.Description");
+        return Strings.isBlank(d) ? (String) f.get("Microsoft.VSTS.TCM.ReproSteps") : d;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static BoardsModels.Comment toComment(Map<String, Object> c) {
+        Map<String, Object> by = (Map<String, Object>) c.getOrDefault("createdBy", Map.of());
+        return new BoardsModels.Comment(c.get("id") instanceof Number n ? n.intValue() : 0, (String) c.get("text"),
+                new Person((String) by.get("displayName"), (String) by.get("uniqueName"), (String) by.get("imageUrl")),
+                (String) c.get("createdDate"), (String) c.get("modifiedDate"));
     }
 
     private static void field(List<Map<String, Object>> patch, String field, String value) {
@@ -268,7 +309,9 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
                 f.get("Microsoft.VSTS.Common.Priority") instanceof Number p ? p.intValue() : null,
                 tags == null ? List.of() : Strings.asList(tags.replace(';', ',')),
                 f.get("System.Parent") instanceof Number p ? p.intValue() : null,
-                url, (String) f.get("System.ChangedDate"), wi.get("rev") instanceof Number r ? r.intValue() : 0);
+                url, (String) f.get("System.ChangedDate"), wi.get("rev") instanceof Number r ? r.intValue() : 0,
+                description(f), (String) f.get("Microsoft.VSTS.Common.AcceptanceCriteria"),
+                f.get("System.CommentCount") instanceof Number c ? c.intValue() : null);
     }
 
     private static Double num(Object o) {

@@ -12,7 +12,13 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
 
     Optional<Alert> findFirstByDedupeKeyAndStatusIn(String dedupeKey, Collection<Alert.Status> statuses);
 
+    Optional<Alert> findFirstByDedupeKeyAndStatusAndResolvedAtAfterOrderByResolvedAtDesc(String dedupeKey, Alert.Status status, Instant after);
+
     List<Alert> findByDedupeKeyStartingWithAndStatusIn(String prefix, Collection<Alert.Status> statuses);
+
+    List<Alert> findByStatusIn(Collection<Alert.Status> statuses);
+
+    List<Alert> findByTypeAndStatusIn(AlertType type, Collection<Alert.Status> statuses);
 
     long countByStatusIn(Collection<Alert.Status> statuses);
 

@@ -40,9 +40,22 @@ public enum SettingType {
                     "Comma separated dot paths that hold the Kafka mapping"),
             new Field("key", "Account key", true, true, null, null))),
 
-    NOTIFICATIONS("Alert notifications", true, List.of(
-            new Field("webhookUrl", "Webhook URL (Teams / Slack)", true, false, "https://...", "Receives new WARNING and CRITICAL alerts"),
-            new Field("minSeverity", "Minimum severity", false, false, "WARNING", "CRITICAL, WARNING or INFO"))),
+    EMAIL("Email (SMTP)", true, List.of(
+            new Field("host", "SMTP host", false, true, "smtp.office365.com", null),
+            new Field("port", "Port", false, false, "587", null),
+            new Field("startTls", "STARTTLS", false, false, "true", "true / false"),
+            new Field("username", "Username", false, false, "alerts@acme.io", "Leave empty for unauthenticated relays"),
+            new Field("password", "Password", true, false, null, null),
+            new Field("from", "From address", false, true, "Platform Portal <alerts@acme.io>", null),
+            new Field("defaultRecipients", "Default recipients", false, false, "devops@acme.io, sre@acme.io",
+                    "Used by alert rules without their own recipients. Test connection sends a test mail here."),
+            new Field("subjectPrefix", "Subject prefix", false, false, "[Platform Portal]", null))),
+
+    TEAMS("Microsoft Teams", true, List.of(
+            new Field("webhookUrl", "Channel webhook URL", true, true, "https://….webhook.office.com/… or Workflows URL",
+                    "Teams Workflows \"Post to a channel when a webhook request is received\" (Adaptive Card payload)"),
+            new Field("escalationWebhookUrl", "Escalation webhook URL", true, false, null,
+                    "Optional separate channel (e.g. on-call) used by escalation steps"))),
 
     KAFKA_CREDENTIAL("Kafka credential", false, List.of(
             new Field("username", "SASL username", false, false, null, null),

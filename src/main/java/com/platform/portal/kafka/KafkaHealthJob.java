@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Set;
 
 import com.platform.portal.alerts.Alert;
+import com.platform.portal.alerts.AlertRuleService;
 import com.platform.portal.alerts.AlertService;
+import com.platform.portal.alerts.AlertType;
 import com.platform.portal.config.PortalProperties;
 import com.platform.portal.kafka.KafkaModels.ClusterOverview;
 import com.platform.portal.kafka.KafkaModels.Connector;
@@ -36,17 +38,19 @@ public class KafkaHealthJob {
     private final KafkaInstanceResolver instances;
     private final KafkaGateway gateway;
     private final AlertService alerts;
+    private final AlertRuleService rules;
     private final KafkaHealthSnapshot.Repository snapshots;
     private final LockingTaskExecutor locks;
     private final TaskScheduler scheduler;
     private final PortalProperties properties;
 
-    public KafkaHealthJob(KafkaInstanceResolver instances, KafkaGateway gateway, AlertService alerts,
+    public KafkaHealthJob(KafkaInstanceResolver instances, KafkaGateway gateway, AlertService alerts, AlertRuleService rules,
                           KafkaHealthSnapshot.Repository snapshots, LockingTaskExecutor locks, TaskScheduler scheduler,
                           PortalProperties properties) {
         this.instances = instances;
         this.gateway = gateway;
         this.alerts = alerts;
+        this.rules = rules;
         this.snapshots = snapshots;
         this.locks = locks;
         this.scheduler = scheduler;
@@ -87,20 +91,20 @@ public class KafkaHealthJob {
         long maxLag = 0;
 
         if ("UNREACHABLE".equals(overview.status())) {
-            raise(active, prefix + "unreachable", Alert.Severity.CRITICAL, "Kafka cluster " + instance.name() + " is unreachable",
+            raise(active, AlertType.KAFKA_UNREACHABLE, prefix + "unreachable", null, "Kafka cluster " + instance.name() + " is unreachable",
                     overview.error(), resource);
         } else {
             if (overview.brokersOnline() < overview.brokersExpected()) {
-                raise(active, prefix + "brokers", overview.brokersOnline() == 0 ? Alert.Severity.CRITICAL : Alert.Severity.WARNING,
+                raise(active, AlertType.KAFKA_BROKER_DOWN, prefix + "brokers", overview.brokersOnline() == 0 ? Alert.Severity.CRITICAL : null,
                         "%d of %d brokers online on %s".formatted(overview.brokersOnline(), overview.brokersExpected(), instance.name()),
                         "Brokers configured in Inventory: " + String.join(", ", instance.brokers()), resource);
             }
             if (overview.underReplicated() > 0) {
-                raise(active, prefix + "urp", Alert.Severity.WARNING,
+                raise(active, AlertType.KAFKA_UNDER_REPLICATED, prefix + "urp", null,
                         overview.underReplicated() + " under-replicated partitions on " + instance.name(), null, resource);
             }
             if (overview.offlinePartitions() > 0) {
-                raise(active, prefix + "offline", Alert.Severity.CRITICAL,
+                raise(active, AlertType.KAFKA_OFFLINE_PARTITIONS, prefix + "offline", null,
                         overview.offlinePartitions() + " offline partitions on " + instance.name(), null, resource);
             }
             if (!instance.connectUrls().isEmpty()) {
@@ -110,25 +114,27 @@ public class KafkaHealthJob {
                             String failedTasks = c.tasks().stream().filter(t -> "FAILED".equals(t.state()))
                                     .map(t -> "task " + t.id()).reduce((a, b) -> a + ", " + b).orElse("connector");
                             String trace = c.tasks().stream().map(KafkaModels.ConnectorTask::trace).filter(t -> t != null).findFirst().orElse(null);
-                            raise(active, prefix + "connector:" + c.name(), Alert.Severity.CRITICAL,
+                            raise(active, AlertType.KAFKA_CONNECTOR_FAILED, prefix + "connector:" + c.name(), null,
                                     "%s %s FAILED (%s) on %s".formatted(capitalize(c.type()), c.name(), failedTasks, instance.name()),
                                     trace == null ? null : trace.lines().findFirst().orElse(trace), resource + " / " + c.name());
                         }
                     }
                 } catch (RuntimeException e) {
-                    raise(active, prefix + "connect", Alert.Severity.WARNING, "Kafka Connect unreachable for " + instance.name(),
+                    raise(active, AlertType.KAFKA_CONNECT_UNREACHABLE, prefix + "connect", null, "Kafka Connect unreachable for " + instance.name(),
                             e.getMessage(), resource);
                 }
             }
-            long threshold = lagThreshold(instance);
+            AlertRuleService.Policy lagPolicy = rules.policy(AlertType.KAFKA_CONSUMER_LAG);
+            long threshold = lagThreshold(instance, lagPolicy.param("lagThreshold", DEFAULT_LAG_THRESHOLD));
+            long criticalAt = threshold * Math.max(1, lagPolicy.param("criticalMultiplier", 10));
             try {
                 List<ConsumerGroupSummary> groups = gateway.consumerGroups(instance);
                 for (ConsumerGroupSummary g : groups) {
                     maxLag = Math.max(maxLag, g.totalLag());
                     if (g.totalLag() > threshold && g.members() > 0) {
-                        raise(active, prefix + "lag:" + g.groupId(), g.totalLag() > threshold * 10 ? Alert.Severity.CRITICAL : Alert.Severity.WARNING,
+                        raise(active, AlertType.KAFKA_CONSUMER_LAG, prefix + "lag:" + g.groupId(), g.totalLag() > criticalAt ? Alert.Severity.CRITICAL : null,
                                 "Consumer group %s lag %,d on %s".formatted(g.groupId(), g.totalLag(), instance.name()),
-                                "Threshold " + threshold + ". Topics: " + String.join(", ", g.topics()), resource + " / " + g.groupId());
+                                "Warning threshold %,d, critical %,d. Topics: ".formatted(threshold, criticalAt) + String.join(", ", g.topics()), resource + " / " + g.groupId());
                     }
                 }
             } catch (RuntimeException e) {
@@ -139,9 +145,9 @@ public class KafkaHealthJob {
         saveSnapshot(instance, overview, maxLag);
     }
 
-    private void raise(Set<String> active, String key, Alert.Severity severity, String title, String message, String resource) {
+    private void raise(Set<String> active, AlertType type, String key, Alert.Severity severity, String title, String message, String resource) {
         active.add(key);
-        alerts.raise("KAFKA", severity, key, title, message, resource);
+        alerts.raise(type, key, severity, title, message, resource);
     }
 
     void saveSnapshot(KafkaInstance instance, ClusterOverview o, long maxLag) {
@@ -165,13 +171,14 @@ public class KafkaHealthJob {
         snapshots.deleteOlderThan(Instant.now().minus(7, ChronoUnit.DAYS));
     }
 
-    private static long lagThreshold(KafkaInstance instance) {
+    /** Per-instance override (custom "lagThreshold" inventory column) wins over the alert rule threshold. */
+    private static long lagThreshold(KafkaInstance instance, long ruleThreshold) {
         Object v = instance.extra().get("lagThreshold");
         if (v instanceof Number n) return n.longValue();
         try {
-            return v == null ? DEFAULT_LAG_THRESHOLD : Long.parseLong(v.toString());
+            return v == null ? ruleThreshold : Long.parseLong(v.toString());
         } catch (NumberFormatException e) {
-            return DEFAULT_LAG_THRESHOLD;
+            return ruleThreshold;
         }
     }
 

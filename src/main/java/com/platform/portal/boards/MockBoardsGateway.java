@@ -8,7 +8,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import com.platform.portal.boards.BoardsModels.Comment;
 import com.platform.portal.boards.BoardsModels.Iteration;
 import com.platform.portal.boards.BoardsModels.Person;
 import com.platform.portal.boards.BoardsModels.WorkItem;
@@ -32,6 +35,11 @@ public class MockBoardsGateway implements BoardsGateway {
 
     private final List<Iteration> iterations;
     private final Map<Integer, WorkItem> items = new ConcurrentHashMap<>();
+    private final Map<Integer, List<Comment>> comments = new ConcurrentHashMap<>();
+    private final AtomicInteger commentIds = new AtomicInteger(9000);
+
+    private static final String ACCEPTANCE = "<ul><li>Change is applied in dev, uat and prod</li><li>Runbook updated</li>"
+            + "<li>Dashboards and alerts show no regression for 24h</li></ul>";
 
     public MockBoardsGateway() {
         LocalDate start = LocalDate.now().minusDays(6);
@@ -68,9 +76,59 @@ public class MockBoardsGateway implements BoardsGateway {
                     taskEnd == null ? null : taskEnd.atTime(17, 0).toInstant(ZoneOffset.UTC).toString(),
                     "Task".equals(type) ? (double) (id % 6 + 1) : null, (Double) s[5], (Integer) s[4],
                     "Bug".equals(type) ? List.of("ops", "incident") : List.of("platform"), null,
-                    "https://dev.azure.com/acme/Platform/_workitems/edit/" + id, Instant.now().toString(), 1));
+                    "https://dev.azure.com/acme/Platform/_workitems/edit/" + id, Instant.now().toString(), 1,
+                    descriptionFor((String) s[0], type), "User Story".equals(type) ? ACCEPTANCE : null, 0));
+            seedComments(id, who);
             id++;
         }
+    }
+
+    private static String descriptionFor(String title, String type) {
+        if ("Bug".equals(type)) {
+            return "<p><b>Observed:</b> " + title + ".</p><p><b>Repro steps</b></p><ol><li>Open the Kafka page in the portal</li>"
+                    + "<li>Check the affected cluster / consumer group</li><li>Compare with the Grafana dashboard</li></ol>"
+                    + "<p><b>Expected:</b> no failed tasks and lag below the alert threshold.</p>";
+        }
+        return "<p>" + title + ".</p><p>Context: part of the platform reliability roadmap for this quarter. "
+                + "Coordinate the change window in <a href=\"https://teams.microsoft.com\">#platform-ops</a> and record it in the "
+                + "change calendar.</p><ul><li>Prepare and review the plan</li><li>Execute in uat, then prod</li><li>Validate monitoring</li></ul>";
+    }
+
+    private void seedComments(int id, Person assignee) {
+        List<Comment> list = new CopyOnWriteArrayList<>();
+        if (id % 3 == 0) {
+            list.add(new Comment(commentIds.incrementAndGet(), "<div>Kicked this off – plan is in the linked wiki page.</div>",
+                    assignee == null ? TEAM.get(0) : assignee, Instant.now().minusSeconds(86_400 * 2).toString(), null));
+            list.add(new Comment(commentIds.incrementAndGet(), "<div>Looks good. Please schedule the prod step outside business hours.</div>",
+                    TEAM.get(4), Instant.now().minusSeconds(3600 * 5).toString(), null));
+        } else if (id % 3 == 1) {
+            list.add(new Comment(commentIds.incrementAndGet(), "<div>Blocked on access to the target subscription, waiting for approval.</div>",
+                    assignee == null ? TEAM.get(1) : assignee, Instant.now().minusSeconds(3600 * 20).toString(), null));
+        }
+        comments.put(id, list);
+    }
+
+    private WorkItem withCount(WorkItem w) {
+        return new WorkItem(w.id(), w.title(), w.type(), w.state(), w.assignedTo(), w.startDate(), w.endDate(), w.remainingWork(),
+                w.storyPoints(), w.priority(), w.tags(), w.parentId(), w.url(), w.changedDate(), w.rev(), w.description(),
+                w.acceptanceCriteria(), comments.getOrDefault(w.id(), List.of()).size());
+    }
+
+    @Override
+    public List<Comment> comments(int id) {
+        get(id);
+        return List.copyOf(comments.getOrDefault(id, List.of()));
+    }
+
+    @Override
+    public Comment addComment(int id, String html) {
+        get(id);
+        Person author = TEAM.get(0);
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) author = new Person("admin".equals(auth.getName()) ? "Demo Admin" : auth.getName(), auth.getName() + "@acme.io", null);
+        Comment c = new Comment(commentIds.incrementAndGet(), html, author, Instant.now().toString(), null);
+        comments.computeIfAbsent(id, k -> new CopyOnWriteArrayList<>()).add(c);
+        return c;
     }
 
     private static Iteration iteration(String id, String name, LocalDate start, String timeFrame) {
@@ -93,7 +151,7 @@ public class MockBoardsGateway implements BoardsGateway {
         if (!"sprint-43".equals(iterationId)) {
             return List.of();
         }
-        return items.values().stream().sorted((a, b) -> Integer.compare(a.id(), b.id())).toList();
+        return items.values().stream().sorted((a, b) -> Integer.compare(a.id(), b.id())).map(this::withCount).toList();
     }
 
     @Override
@@ -112,7 +170,7 @@ public class MockBoardsGateway implements BoardsGateway {
     public WorkItem get(int id) {
         WorkItem item = items.get(id);
         if (item == null) throw ApiException.notFound("Work item " + id);
-        return item;
+        return withCount(item);
     }
 
     @Override
@@ -131,7 +189,9 @@ public class MockBoardsGateway implements BoardsGateway {
                 u.startDate() == null ? w.startDate() : (u.startDate().isEmpty() ? null : u.startDate()),
                 u.endDate() == null ? w.endDate() : (u.endDate().isEmpty() ? null : u.endDate()),
                 u.remainingWork() == null ? w.remainingWork() : u.remainingWork(), w.storyPoints(), w.priority(), w.tags(),
-                w.parentId(), w.url(), Instant.now().toString(), w.rev() + 1);
+                w.parentId(), w.url(), Instant.now().toString(), w.rev() + 1,
+                u.description() == null ? w.description() : (u.description().isEmpty() ? null : u.description()),
+                w.acceptanceCriteria(), w.commentCount());
         items.put(id, updated);
         return updated;
     }

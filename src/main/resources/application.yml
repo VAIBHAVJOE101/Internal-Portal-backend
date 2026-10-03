@@ -68,6 +68,8 @@ portal:
   environment: ${PORTAL_ENVIRONMENT:dev}
   # Where the browser is sent after login/logout (frontend served on the same host via ingress)
   frontend-url: ${PORTAL_FRONTEND_URL:/}
+  # Absolute URL of the portal, used for links in email / Teams notifications
+  public-url: ${PORTAL_PUBLIC_URL:http://localhost:5173}
   # Base64 encoded 256-bit key used to encrypt integration secrets at rest (mount from a K8s Secret)
   encryption-key: ${PORTAL_ENCRYPTION_KEY:}
   auth:
@@ -93,5 +95,13 @@ portal:
       key: ${COSMOS_KEY:}
       database: ${COSMOS_DATABASE:}
       container: ${COSMOS_CONTAINER:}
-    notifications:
-      webhookUrl: ${ALERT_WEBHOOK_URL:}
+    email:
+      host: ${SMTP_HOST:}
+      port: ${SMTP_PORT:587}
+      username: ${SMTP_USERNAME:}
+      password: ${SMTP_PASSWORD:}
+      from: ${SMTP_FROM:}
+      defaultRecipients: ${ALERT_EMAIL_RECIPIENTS:}
+    teams:
+      webhookUrl: ${TEAMS_WEBHOOK_URL:}
+      escalationWebhookUrl: ${TEAMS_ESCALATION_WEBHOOK_URL:}

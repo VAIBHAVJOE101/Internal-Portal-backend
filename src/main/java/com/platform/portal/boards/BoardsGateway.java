@@ -23,4 +23,8 @@ public interface BoardsGateway {
     WorkItem get(int id);
 
     WorkItem update(int id, WorkItemUpdate update);
+
+    List<BoardsModels.Comment> comments(int id);
+
+    BoardsModels.Comment addComment(int id, String html);
 }

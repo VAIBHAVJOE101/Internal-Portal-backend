@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.platform.portal.alerts.Alert;
+import com.platform.portal.alerts.AlertRuleService;
 import com.platform.portal.alerts.AlertService;
+import com.platform.portal.alerts.AlertType;
 import com.platform.portal.config.PortalProperties;
 import net.javacrumbs.shedlock.core.LockConfiguration;
 import net.javacrumbs.shedlock.core.LockingTaskExecutor;
@@ -19,7 +21,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Raises alerts for expiry-tracked inventory dates (secrets, certificates, licences...):
- * CRITICAL when expired or within 7 days, WARNING within 30 days. Alerts auto-resolve when the date is renewed.
+ * Thresholds come from the CREDENTIAL_EXPIRY alert rule (default: WARNING within 30 days, CRITICAL within 7). Alerts auto-resolve when the date is renewed.
  */
 @Component
 public class ExpiryJob {
@@ -29,14 +31,16 @@ public class ExpiryJob {
 
     private final InventoryService inventory;
     private final AlertService alerts;
+    private final AlertRuleService rules;
     private final LockingTaskExecutor locks;
     private final TaskScheduler scheduler;
     private final PortalProperties properties;
 
-    public ExpiryJob(InventoryService inventory, AlertService alerts, LockingTaskExecutor locks, TaskScheduler scheduler,
+    public ExpiryJob(InventoryService inventory, AlertService alerts, AlertRuleService rules, LockingTaskExecutor locks, TaskScheduler scheduler,
                      PortalProperties properties) {
         this.inventory = inventory;
         this.alerts = alerts;
+        this.rules = rules;
         this.locks = locks;
         this.scheduler = scheduler;
         this.properties = properties;
@@ -56,13 +60,16 @@ public class ExpiryJob {
     public void check() {
         try {
             Set<String> active = new HashSet<>();
-            for (InventoryDtos.ExpiringItem item : inventory.expiring(30)) {
+            AlertRuleService.Policy policy = rules.policy(AlertType.CREDENTIAL_EXPIRY);
+            long warnDays = policy.param("warnDays", 30);
+            long criticalDays = policy.param("criticalDays", 7);
+            for (InventoryDtos.ExpiringItem item : inventory.expiring((int) warnDays)) {
                 String key = PREFIX + item.pageSlug() + ":" + item.recordId() + ":" + item.columnKey();
                 active.add(key);
-                Alert.Severity severity = item.daysLeft() <= 7 ? Alert.Severity.CRITICAL : Alert.Severity.WARNING;
+                Alert.Severity severity = item.daysLeft() <= criticalDays ? Alert.Severity.CRITICAL : Alert.Severity.WARNING;
                 String when = item.daysLeft() < 0 ? "expired " + (-item.daysLeft()) + " day(s) ago"
                         : item.daysLeft() == 0 ? "expires today" : "expires in " + item.daysLeft() + " day(s)";
-                alerts.raise("INVENTORY", severity, key, item.title() + " " + when,
+                alerts.raise(AlertType.CREDENTIAL_EXPIRY, key, severity, item.title() + " " + when,
                         item.columnLabel() + " on " + item.pageName() + ": " + item.expiresOn(), item.pageName() + " / " + item.title());
             }
             alerts.resolveMissing(PREFIX, active);
