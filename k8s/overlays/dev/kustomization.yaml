@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/your-org/devops-portal-backend
+    newTag: dev
+patches:
+  - target: { kind: ConfigMap, name: devops-portal-backend }
+    patch: |-
+      - op: replace
+        path: /data/PORTAL_ENVIRONMENT
+        value: dev
+  - target: { kind: Deployment, name: devops-portal-backend }
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target: { kind: HorizontalPodAutoscaler, name: devops-portal-backend }
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1

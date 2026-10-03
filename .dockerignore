@@ -1,0 +1,6 @@
+.gradle
+build
+k8s
+*.md
+.git
+.idea

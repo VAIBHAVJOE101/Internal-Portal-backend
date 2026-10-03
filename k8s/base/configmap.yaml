@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-portal-backend
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  PORTAL_MODE: "real"
+  PORTAL_ENVIRONMENT: "prod"
+  PORTAL_FRONTEND_URL: "/"
+  PORTAL_COOKIE_SECURE: "true"
+  GITHUB_ORG: "your-org"
+  GITHUB_ADMIN_TEAM: "devops_team"
+  GITHUB_OAUTH_SCOPES: "read:user,read:org,repo,workflow,admin:org"
+  DB_URL: "jdbc:postgresql://postgres.devops-portal.svc:5432/portal"

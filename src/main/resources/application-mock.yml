@@ -1,0 +1,19 @@
+# Self-contained demo mode: in-memory H2 database, mocked integrations, local login users (admin/admin, reader/reader).
+spring:
+  datasource:
+    url: jdbc:h2:mem:portal;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  flyway:
+    placeholders:
+      json: CLOB
+      blob: BYTEA
+
+portal:
+  mode: mock
+  environment: demo
+  auth:
+    github-org: acme-platform
+  jobs:
+    kafka-health-interval: 30s
+    expiry-check-interval: 1h

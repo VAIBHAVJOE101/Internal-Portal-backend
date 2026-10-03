@@ -1,0 +1,97 @@
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  shutdown: graceful
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        name: PORTAL_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${PORTAL_COOKIE_SECURE:false}
+
+spring:
+  application:
+    name: devops-portal-backend
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/portal}
+    username: ${DB_USERNAME:portal}
+    password: ${DB_PASSWORD:portal}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    placeholders:
+      json: TEXT
+      blob: BYTEA
+  session:
+    timeout: 8h
+    jdbc:
+      initialize-schema: always
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_OAUTH_CLIENT_ID:change-me}
+            client-secret: ${GITHUB_OAUTH_CLIENT_SECRET:change-me}
+            scope: ${GITHUB_OAUTH_SCOPES:read:user,read:org,repo,workflow,admin:org}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+portal:
+  # real = talk to Kafka / Azure DevOps / GitHub / Cosmos; mock = seeded in-memory demo data
+  mode: ${PORTAL_MODE:real}
+  environment: ${PORTAL_ENVIRONMENT:dev}
+  # Where the browser is sent after login/logout (frontend served on the same host via ingress)
+  frontend-url: ${PORTAL_FRONTEND_URL:/}
+  # Base64 encoded 256-bit key used to encrypt integration secrets at rest (mount from a K8s Secret)
+  encryption-key: ${PORTAL_ENCRYPTION_KEY:}
+  auth:
+    github-org: ${GITHUB_ORG:}
+    admin-team-slug: ${GITHUB_ADMIN_TEAM:devops_team}
+  jobs:
+    kafka-health-interval: 60s
+    expiry-check-interval: 6h
+  # Optional env-provided defaults for integration settings. Values saved in the UI take precedence.
+  integrations:
+    github:
+      org: ${GITHUB_ORG:}
+      apiUrl: https://api.github.com
+      token: ${GITHUB_TOKEN:}
+    azure-devops:
+      baseUrl: https://dev.azure.com
+      organization: ${AZDO_ORG:}
+      project: ${AZDO_PROJECT:}
+      team: ${AZDO_TEAM:}
+      pat: ${AZDO_PAT:}
+    cosmos:
+      endpoint: ${COSMOS_ENDPOINT:}
+      key: ${COSMOS_KEY:}
+      database: ${COSMOS_DATABASE:}
+      container: ${COSMOS_CONTAINER:}
+    notifications:
+      webhookUrl: ${ALERT_WEBHOOK_URL:}

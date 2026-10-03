@@ -1,0 +1,23 @@
+# Ingress: only the frontend/ingress controller may reach the backend.
+# Egress: open, because connectivity tests must reach arbitrary external endpoints and
+# the backend talks to Kafka, Kafka Connect, GitHub, Azure DevOps and Cosmos DB.
+# Tighten egress per environment if your security model requires it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: devops-portal-backend
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: devops-portal
+      ports:
+        - port: 8080
+  egress:
+    - {}
