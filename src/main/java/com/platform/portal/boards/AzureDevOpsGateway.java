@@ -104,7 +104,7 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
         Ctx ctx = ctx(cfg);
         Map<String, Object> current = get(ctx, ctx.teamBase() + "/_apis/work/teamsettings/iterations?$timeframe=current&" + API);
         List<Map<String, Object>> value = list(current.get("value"));
-        return Map.of("team", ctx.team(), "currentSprint", value.isEmpty() ? "none" : String.valueOf(value.getFirst().get("name")));
+        return Map.of("team", ctx.team(), "currentSprint", value.isEmpty() ? "none" : String.valueOf(value.get(0).get("name")));
     }
 
     @Override
@@ -122,7 +122,7 @@ public class AzureDevOpsGateway implements BoardsGateway, IntegrationProbe {
         if (value.isEmpty()) {
             throw ApiException.notFound("Current sprint for team " + ctx.team());
         }
-        return toIteration(value.getFirst());
+        return toIteration(value.get(0));
     }
 
     @Override

@@ -12,11 +12,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import com.platform.portal.alerts.AlertRuleService.Policy;
 import com.platform.portal.common.ApiException;
 import com.platform.portal.common.Strings;
+import com.platform.portal.common.Threads;
 import com.platform.portal.config.PortalProperties;
 import com.platform.portal.settings.IntegrationProbe;
 import com.platform.portal.settings.SettingType;
@@ -63,7 +63,7 @@ public class AlertNotifier {
     private final SettingsService settings;
     private final AlertEvent.Repository events;
     private final PortalProperties properties;
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Threads.pool("alert-notifier", 8);
     private final RestClient http;
 
     public AlertNotifier(@Lazy SettingsService settings, AlertEvent.Repository events, PortalProperties properties) {

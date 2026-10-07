@@ -1,0 +1,12 @@
+# PORTAL_PROFILE=h2: embedded H2 database and real integrations, no external database needed.
+# The default URL is in-memory (data is lost on restart and each replica has its own copy). Point H2_URL at a
+# file on a persistent volume to keep data, e.g. jdbc:h2:file:/data/portal;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+spring:
+  datasource:
+    url: ${H2_URL:jdbc:h2:mem:portal;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+  flyway:
+    placeholders:
+      json: CLOB
+      blob: BYTEA

@@ -175,7 +175,7 @@ public class RealKafkaGateway implements KafkaGateway {
                 .map(n -> new ConfigResource(ConfigResource.Type.TOPIC, n)).toList()).all());
         return descriptions.values().stream().map(t -> {
             Config cfg = configs.get(new ConfigResource(ConfigResource.Type.TOPIC, t.name()));
-            int rf = t.partitions().isEmpty() ? 0 : t.partitions().getFirst().replicas().size();
+            int rf = t.partitions().isEmpty() ? 0 : t.partitions().get(0).replicas().size();
             int urp = (int) t.partitions().stream().filter(p -> p.isr().size() < p.replicas().size()).count();
             return new TopicSummary(t.name(), t.partitions().size(), rf, t.isInternal(), urp,
                     value(cfg, "retention.ms"), value(cfg, "cleanup.policy"));

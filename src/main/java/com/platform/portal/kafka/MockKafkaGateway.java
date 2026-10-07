@@ -278,7 +278,7 @@ public class MockKafkaGateway implements KafkaGateway {
         for (int p = 0; p < t.partitions(); p++) {
             List<Integer> replicas = new ArrayList<>();
             for (int r = 0; r < t.rf; r++) replicas.add((p + r) % brokers + 1);
-            partitions.add(new PartitionInfo(p, replicas.getFirst(), replicas, replicas, t.earliest[p], t.latest[p]));
+            partitions.add(new PartitionInfo(p, replicas.get(0), replicas, replicas, t.earliest[p], t.latest[p]));
             messages += t.latest[p] - t.earliest[p];
         }
         List<ConfigEntry> configs = new ArrayList<>();
@@ -536,7 +536,7 @@ public class MockKafkaGateway implements KafkaGateway {
     @SuppressWarnings("unchecked")
     public synchronized RawResponse connectRaw(KafkaInstance instance, String method, String path, Object body) {
         requireConnect(instance);
-        String url = instance.connectUrls().getFirst() + path;
+        String url = instance.connectUrls().get(0) + path;
         String clean = path.split("\\?")[0].replaceAll("/+$", "");
         String[] parts = clean.isEmpty() ? new String[0] : clean.substring(1).split("/");
         String m = method.toUpperCase();

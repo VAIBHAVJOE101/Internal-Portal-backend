@@ -324,7 +324,7 @@ public class InventoryService {
         if (rows.isEmpty()) {
             throw ApiException.badRequest("CSV is empty");
         }
-        List<String> header = rows.getFirst();
+        List<String> header = rows.get(0);
         Map<Integer, String> mapping = new HashMap<>();
         int idIndex = -1;
         for (int i = 0; i < header.size(); i++) {

@@ -1,6 +1,0 @@
-# Local development against the docker-compose PostgreSQL (docker compose up -d postgres).
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/portal
-    username: portal
-    password: portal

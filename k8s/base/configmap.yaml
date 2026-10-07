@@ -3,8 +3,10 @@ kind: ConfigMap
 metadata:
   name: devops-portal-backend
 data:
-  SPRING_PROFILES_ACTIVE: "prod"
-  PORTAL_MODE: "real"
+  # Runtime switch: mock | h2 | postgres
+  PORTAL_PROFILE: "postgres"
+  # Backend is served under this path (the frontend nginx proxies /devopsportal/ to this Service)
+  PORTAL_CONTEXT_PATH: "/devopsportal"
   PORTAL_ENVIRONMENT: "prod"
   PORTAL_FRONTEND_URL: "/"
   PORTAL_COOKIE_SECURE: "true"

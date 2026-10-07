@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.platform.portal.common.CurrentUser;
 import com.platform.portal.config.PortalProperties;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,11 +22,11 @@ public class AuthController {
 
     /** Unauthenticated bootstrap info for the login page (also issues the CSRF cookie). */
     @GetMapping("/api/public/info")
-    public Map<String, Object> info() {
+    public Map<String, Object> info(HttpServletRequest request) {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("mode", properties.isMock() ? "mock" : "real");
         info.put("environment", properties.environment());
-        info.put("loginUrl", properties.isMock() ? "/api/auth/login" : "/oauth2/authorization/github");
+        info.put("loginUrl", request.getContextPath() + (properties.isMock() ? "/api/auth/login" : "/oauth2/authorization/github"));
         info.put("githubOrg", properties.auth().githubOrg());
         info.put("adminTeam", properties.auth().adminTeamSlug());
         return info;
