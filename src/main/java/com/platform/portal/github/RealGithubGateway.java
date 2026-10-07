@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import com.platform.portal.common.ApiException;
 import com.platform.portal.common.Strings;
+import com.platform.portal.common.Threads;
 import com.platform.portal.config.PortalProperties;
 import com.platform.portal.github.GithubModels.Member;
 import com.platform.portal.github.GithubModels.Repo;
@@ -58,7 +58,7 @@ public class RealGithubGateway implements GithubGateway, IntegrationProbe {
     private final PortalProperties properties;
     private final ObjectProvider<OAuth2AuthorizedClientService> authorizedClients;
     private final SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Threads.pool("github", 16);
 
     public RealGithubGateway(SettingsService settings, PortalProperties properties,
                              ObjectProvider<OAuth2AuthorizedClientService> authorizedClients) {

@@ -1,6 +1,6 @@
 # DevOps Portal – Backend
 
-Spring Boot 4 (Java 25, Gradle/Groovy) backend for the internal Platform & DevOps portal. It works as a
+Spring Boot 4 (Java 17, Gradle/Groovy) backend for the internal Platform & DevOps portal. It works as a
 backend-for-frontend (BFF): the browser holds only a session cookie, and all integration credentials stay on the server.
 
 | Module | What it does |
@@ -25,31 +25,48 @@ Login uses **GitHub OAuth**:
 
 READER can call every `GET` endpoint. All mutations require ADMIN.
 
+## Base path
+
+Every backend URL is served under `/devopsportal` (`PORTAL_CONTEXT_PATH`): `/devopsportal/api/**`, `/devopsportal/oauth2/**`,
+`/devopsportal/login/oauth2/code/github`, `/devopsportal/actuator/health`, `/devopsportal/swagger-ui.html`.
+In Kubernetes the frontend's nginx proxies `/devopsportal/` to the `devops-portal-backend` Service, so the browser only talks to the frontend.
+
+## Runtime mode: `PORTAL_PROFILE`
+
+One flag selects the database and integration mode (`SPRING_PROFILES_ACTIVE` works too and takes precedence):
+
+| `PORTAL_PROFILE` | Database | Integrations and login |
+|---|---|---|
+| `mock` | H2 in memory | Simulated Kafka, Azure Boards, GitHub and Cosmos DB; demo users `admin/admin` and `reader/reader` |
+| `h2` | H2 (in memory by default, set `H2_URL` to a `jdbc:h2:file:...` URL to persist) | Real integrations, GitHub OAuth |
+| `postgres` (default) | PostgreSQL (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`) | Real integrations, GitHub OAuth |
+
 ## Run locally
 
-Mock mode is self-contained: H2 in memory, simulated Kafka, Azure Boards, GitHub and Cosmos DB, and demo users `admin/admin` and `reader/reader`.
+Requires JDK 17.
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=mock'
+PORTAL_PROFILE=mock ./gradlew bootRun          # self-contained demo
+PORTAL_PROFILE=h2 ./gradlew bootRun            # real integrations, no database to install
 ```
 
-Real mode uses PostgreSQL plus a local Kafka and Kafka Connect from docker-compose:
+PostgreSQL mode uses PostgreSQL plus a local Kafka and Kafka Connect from docker-compose:
 
 ```bash
 docker compose up -d
 export GITHUB_OAUTH_CLIENT_ID=... GITHUB_OAUTH_CLIENT_SECRET=... GITHUB_ORG=your-org
-./gradlew bootRun          # profile "local"
+./gradlew bootRun          # PORTAL_PROFILE defaults to postgres
 ```
 
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- Health: `/actuator/health`
+- Swagger UI: http://localhost:8080/devopsportal/swagger-ui.html
+- Health: http://localhost:8080/devopsportal/actuator/health
 
 ### GitHub OAuth app
 
 Create the app under the org (Settings → Developer settings → OAuth Apps):
 
 - **Homepage URL:** `https://portal.example.com`
-- **Callback URL:** `https://portal.example.com/login/oauth2/code/github`. For local development use `http://localhost:5173/login/oauth2/code/github`, because the Vite dev server proxies to the backend.
+- **Callback URL:** `https://portal.example.com/devopsportal/login/oauth2/code/github`. For local development use `http://localhost:5173/devopsportal/login/oauth2/code/github`, because the Vite dev server proxies to the backend.
 
 Requested scopes are `read:user, read:org, repo, workflow, admin:org`. Change them with `GITHUB_OAUTH_SCOPES`. Team changes still need the user to be an org owner or team maintainer. If the org restricts OAuth app access, approve the app for the org.
 
@@ -57,8 +74,10 @@ Requested scopes are `read:user, read:org, repo, workflow, admin:org`. Change th
 
 | Env var | Purpose |
 |---|---|
-| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL |
-| `PORTAL_MODE` | `real` (default) or `mock` |
+| `PORTAL_PROFILE` | `mock`, `h2` or `postgres` (default), see above |
+| `PORTAL_CONTEXT_PATH` | Backend base path, default `/devopsportal` |
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL (`postgres` profile) |
+| `H2_URL` | H2 JDBC URL (`h2` profile), in memory by default |
 | `PORTAL_ENCRYPTION_KEY` | Base64 32-byte key for encrypting secrets at rest (`openssl rand -base64 32`) |
 | `GITHUB_OAUTH_CLIENT_ID` / `_SECRET`, `GITHUB_ORG`, `GITHUB_ADMIN_TEAM` | Login and role mapping |
 | `GITHUB_TOKEN`, `AZDO_ORG`, `AZDO_PROJECT`, `AZDO_TEAM`, `AZDO_PAT`, `COSMOS_*`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `ALERT_EMAIL_RECIPIENTS`, `TEAMS_WEBHOOK_URL`, `TEAMS_ESCALATION_WEBHOOK_URL` | Optional defaults. Values saved in **Settings** take precedence |
@@ -91,7 +110,7 @@ Flyway migrations live in `src/main/resources/db/migration`. JSON values are sto
 ## Tests
 
 ```bash
-./gradlew test     # Spring Boot + MockMvc tests against the mock profile
+./gradlew test     # Spring Boot + MockMvc tests against the mock profile (JDK 17)
 ```
 
 ## Deploy to Kubernetes
@@ -103,4 +122,4 @@ kubectl -n devops-portal create secret generic devops-portal-backend --from-env-
 kubectl apply -k k8s/overlays/prod
 ```
 
-`k8s/base/secret.example.yaml` lists the keys the Secret needs. The deployment runs as non-root with a read-only root filesystem and liveness/readiness probes, and includes an HPA and a PDB. Scheduled jobs use ShedLock, so any number of replicas is safe. The NetworkPolicy keeps egress open so connectivity tests can reach external endpoints; tighten it per environment if needed.
+`k8s/base/secret.example.yaml` lists the keys the Secret needs. Set `PORTAL_PROFILE` in `k8s/base/configmap.yaml` to switch between `postgres`, `h2` and `mock`; with in-memory `h2` or `mock`, run a single replica since each pod has its own database. The deployment runs as non-root with a read-only root filesystem and liveness/readiness probes, and includes an HPA and a PDB. Scheduled jobs use ShedLock, so any number of replicas is safe. The NetworkPolicy keeps egress open so connectivity tests can reach external endpoints; tighten it per environment if needed.

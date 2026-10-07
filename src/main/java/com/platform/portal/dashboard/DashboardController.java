@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -15,6 +14,7 @@ import com.platform.portal.audit.AuditService;
 import com.platform.portal.boards.BoardsGateway;
 import com.platform.portal.boards.BoardsModels.Iteration;
 import com.platform.portal.boards.BoardsModels.WorkItem;
+import com.platform.portal.common.Threads;
 import com.platform.portal.connectivity.ConnectivityService;
 import com.platform.portal.github.GithubGateway;
 import com.platform.portal.inventory.InventoryDtos.PageDto;
@@ -41,7 +41,7 @@ public class DashboardController {
     private final BoardsGateway boards;
     private final GithubGateway github;
     private final AuditService audit;
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Threads.pool("dashboard", 16);
 
     public DashboardController(KafkaService kafka, AlertService alerts, InventoryService inventory, ConnectivityService connectivity,
                                BoardsGateway boards, GithubGateway github, AuditService audit) {

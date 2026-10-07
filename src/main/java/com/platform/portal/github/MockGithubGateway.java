@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.platform.portal.common.ApiException;
+import com.platform.portal.common.Threads;
 import com.platform.portal.github.GithubModels.Member;
 import com.platform.portal.github.GithubModels.Repo;
 import com.platform.portal.github.GithubModels.Team;
@@ -146,7 +147,7 @@ public class MockGithubGateway implements GithubGateway {
                 "queued", null, r.actor(), r.actorAvatar(), r.runNumber(), r.attempt() + 1, Instant.now().toString(),
                 Instant.now().toString(), null, r.htmlUrl(), r.headSha()) : r);
         // simulate completion shortly after
-        Thread.ofVirtual().start(() -> {
+        Threads.start("mock-github-run", () -> {
             try {
                 Thread.sleep(4000);
             } catch (InterruptedException ignored) {

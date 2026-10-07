@@ -57,7 +57,7 @@ final class Csv {
                 }
                 row.add(cell.toString());
                 cell.setLength(0);
-                if (!(row.size() == 1 && row.getFirst().isEmpty())) {
+                if (!(row.size() == 1 && row.get(0).isEmpty())) {
                     rows.add(row);
                 }
                 row = new ArrayList<>();

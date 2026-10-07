@@ -1,6 +1,6 @@
 # Local dependencies for running the backend in "real" mode:
 #   docker compose up -d
-#   ./gradlew bootRun            (profile "local" is the default)
+#   ./gradlew bootRun            (PORTAL_PROFILE defaults to "postgres")
 # Then add an instance in Inventory -> Kafka Instances with broker "localhost:9092"
 # and Connect URL "http://localhost:8083".
 services:

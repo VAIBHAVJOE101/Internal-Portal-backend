@@ -107,7 +107,7 @@ public class AppKafkaService {
             m.put("after", c.after());
             return m;
         }).toList());
-        String target = changes.size() == 1 ? changes.getFirst().operationId() : changes.size() + " operations";
+        String target = changes.size() == 1 ? changes.get(0).operationId() : changes.size() + " operations";
         List<ChangeResult> raw = audit.track(changes.size() == 1 ? "APPKAFKA_REMAP" : "APPKAFKA_BULK_REMAP", "gateway-route", target,
                 details, () -> gateway.apply(payload));
         Map<String, Change> byRow = changes.stream().collect(Collectors.toMap(Change::rowId, Function.identity()));

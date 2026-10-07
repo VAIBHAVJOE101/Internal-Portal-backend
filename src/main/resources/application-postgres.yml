@@ -1,0 +1,7 @@
+# PORTAL_PROFILE=postgres (default): PostgreSQL database and real integrations.
+# Locally this matches the docker-compose database (docker compose up -d postgres).
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/portal}
+    username: ${DB_USERNAME:portal}
+    password: ${DB_PASSWORD:portal}

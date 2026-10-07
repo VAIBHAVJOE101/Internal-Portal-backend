@@ -1,4 +1,4 @@
-# Ingress: only the frontend/ingress controller may reach the backend.
+# Ingress: only the frontend pods (whose nginx proxies /devopsportal/ to the Service) and the ingress controller may reach the backend.
 # Egress: open, because connectivity tests must reach arbitrary external endpoints and
 # the backend talks to Kafka, Kafka Connect, GitHub, Azure DevOps and Cosmos DB.
 # Tighten egress per environment if your security model requires it.

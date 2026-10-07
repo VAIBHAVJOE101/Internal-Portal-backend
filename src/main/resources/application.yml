@@ -1,8 +1,8 @@
 server:
   port: 8080
-  forward-headers-strategy: framework
-  shutdown: graceful
   servlet:
+    # Every backend URL lives under this prefix: /devopsportal/api, /devopsportal/actuator, /devopsportal/swagger-ui.html ...
+    context-path: ${PORTAL_CONTEXT_PATH:/devopsportal}
     session:
       timeout: 8h
       cookie:
@@ -10,19 +10,20 @@ server:
         http-only: true
         same-site: lax
         secure: ${PORTAL_COOKIE_SECURE:false}
+  forward-headers-strategy: framework
+  shutdown: graceful
 
 spring:
   application:
     name: devops-portal-backend
   profiles:
-    default: local
-  threads:
-    virtual:
-      enabled: true
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/portal}
-    username: ${DB_USERNAME:portal}
-    password: ${DB_PASSWORD:portal}
+    # Runtime switch: PORTAL_PROFILE=mock | h2 | postgres (SPRING_PROFILES_ACTIVE works too and takes precedence).
+    #   mock     - in-memory H2, mocked Kafka / Azure Boards / GitHub / Cosmos, demo users admin/admin and reader/reader
+    #   h2       - embedded H2 database, real integrations and GitHub login
+    #   postgres - PostgreSQL database, real integrations and GitHub login (production)
+    default: ${PORTAL_PROFILE:postgres}
+    group:
+      mock: h2
   jpa:
     open-in-view: false
     hibernate:
@@ -63,10 +64,10 @@ springdoc:
     path: /v3/api-docs
 
 portal:
-  # real = talk to Kafka / Azure DevOps / GitHub / Cosmos; mock = seeded in-memory demo data
-  mode: ${PORTAL_MODE:real}
+  # real = talk to Kafka / Azure DevOps / GitHub / Cosmos; mock = seeded in-memory demo data. Set by the profile.
+  mode: real
   environment: ${PORTAL_ENVIRONMENT:dev}
-  # Where the browser is sent after login/logout (frontend served on the same host via ingress)
+  # Where the browser is sent after login (the SPA at the root of the same host). Not prefixed with the context path.
   frontend-url: ${PORTAL_FRONTEND_URL:/}
   # Absolute URL of the portal, used for links in email / Teams notifications
   public-url: ${PORTAL_PUBLIC_URL:http://localhost:5173}

@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.platform.portal.alerts.Alert;
@@ -19,6 +18,7 @@ import com.platform.portal.common.ApiException;
 import com.platform.portal.common.CurrentUser;
 import com.platform.portal.common.Json;
 import com.platform.portal.common.Strings;
+import com.platform.portal.common.Threads;
 import com.platform.portal.connectivity.ConnectivityProbe.Outcome;
 import com.platform.portal.connectivity.ConnectivityProbe.Spec;
 import com.platform.portal.connectivity.ConnectivityTarget.ScheduleType;
@@ -44,7 +44,7 @@ public class ConnectivityService {
     private final AuditService audit;
     private final Json json;
     private final ApplicationEventPublisher events;
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Threads.pool("connectivity", 16);
 
     public ConnectivityService(ConnectivityResult.TargetRepository targets, ConnectivityResult.Repository results,
                                ConnectivityProbe probe, AlertService alerts, AuditService audit, Json json,

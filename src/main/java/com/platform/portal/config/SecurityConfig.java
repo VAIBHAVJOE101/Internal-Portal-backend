@@ -24,8 +24,10 @@ import org.springframework.security.oauth2.client.JdbcOAuth2AuthorizedClientServ
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -47,6 +49,9 @@ public class SecurityConfig {
                                                    SettingsService settingsService) throws Exception {
         CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
         csrfHandler.setCsrfRequestAttributeName(null); // resolve token eagerly so the cookie is always issued
+        // The SPA is served from "/" while the backend lives under the context path, so the cookie must be readable at "/"
+        CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfRepository.setCookieCustomizer(cookie -> cookie.path("/"));
 
         http.authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/public/**", "/api/auth/**", "/actuator/health/**", "/actuator/info", "/error",
@@ -57,7 +62,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfRepository)
                         .csrfTokenRequestHandler(csrfHandler))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .exceptionHandling(e -> e.defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
@@ -74,9 +79,15 @@ public class SecurityConfig {
                     .successHandler((req, res, a) -> res.setStatus(HttpStatus.OK.value()))
                     .failureHandler((req, res, e) -> res.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials")));
         } else {
+            // frontend-url is relative to the host, not to the backend context path
+            DefaultRedirectStrategy hostRelative = new DefaultRedirectStrategy();
+            hostRelative.setContextRelative(true);
+            SimpleUrlAuthenticationSuccessHandler loginSuccess = new SimpleUrlAuthenticationSuccessHandler(frontend);
+            loginSuccess.setAlwaysUseDefaultTargetUrl(true);
+            loginSuccess.setRedirectStrategy(hostRelative);
             http.oauth2Login(oauth -> oauth
                     .userInfoEndpoint(u -> u.userService(new GithubOAuth2UserService(properties, settingsService)))
-                    .defaultSuccessUrl(frontend, true)
+                    .successHandler(loginSuccess)
                     .failureHandler((req, res, e) -> res.sendRedirect(frontend + (frontend.endsWith("/") ? "" : "/")
                             + "login?error=" + URLEncoder.encode(e.getMessage() == null ? "Login failed" : e.getMessage(), StandardCharsets.UTF_8))));
         }
